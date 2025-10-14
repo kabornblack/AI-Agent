@@ -3,6 +3,16 @@ import streamlit as st
 import requests
 import os
 
+
+# Configuration - Dynamic API base for deployment
+API_BASE = os.environ.get('API_BASE_URL', 'https://ai-agent-rkzf.onrender.com/api/v1') 
+
+st.set_page_config(
+    page_title="AI Agent Builder - Plug & Play",
+    page_icon="🤖",
+    layout="wide"
+)
+
 # Dark/Light mode CSS customization
 st.markdown("""
 <style>
@@ -52,15 +62,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Configuration - Dynamic API base for deployment
-API_BASE = os.environ.get('API_BASE_URL', 'https://ai-agent-rkzf.onrender.com/api/v1')  # ← CHANGED THIS LINE
-
-st.set_page_config(
-    page_title="AI Agent Builder - Plug & Play",
-    page_icon="🤖",
-    layout="wide"
-)
 
 # Initialize session state
 if 'agent_created' not in st.session_state:
