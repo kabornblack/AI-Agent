@@ -3,65 +3,14 @@ import streamlit as st
 import requests
 import os
 
-
 # Configuration - Dynamic API base for deployment
-API_BASE = os.environ.get('API_BASE_URL', 'https://ai-agent-rkzf.onrender.com/api/v1') 
+API_BASE = os.environ.get('API_BASE_URL', 'https://ai-agent-rkzf.onrender.com/api/v1')  
 
 st.set_page_config(
     page_title="AI Agent Builder - Plug & Play",
     page_icon="🤖",
     layout="wide"
 )
-
-# Dark/Light mode CSS customization
-st.markdown("""
-<style>
-    /* Main page background */
-    .main {
-        background-color: var(--background-color);
-    }
-    
-    /* Cards and containers */
-    .stExpander {
-        background-color: var(--secondary-background-color);
-        border: 1px solid var(--secondary-background-color);
-        border-radius: 10px;
-    }
-    
-    /* Headers */
-    h1, h2, h3 {
-        color: var(--text-color) !important;
-    }
-    
-    /* Success messages */
-    .stSuccess {
-        background-color: #d4edda;
-        border-color: #c3e6cb;
-        color: #155724;
-    }
-    
-    /* Info messages */
-    .stInfo {
-        background-color: #d1ecf1;
-        border-color: #bee5eb;
-        color: #0c5460;
-    }
-    
-    /* Warning messages */
-    .stWarning {
-        background-color: #fff3cd;
-        border-color: #ffeaa7;
-        color: #856404;
-    }
-    
-    /* Error messages */
-    .stError {
-        background-color: #f8d7da;
-        border-color: #f5c6cb;
-        color: #721c24;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # Initialize session state
 if 'agent_created' not in st.session_state:
@@ -267,7 +216,3 @@ st.sidebar.info(
     "• Compliance & Verification\n\n"
     "No coding required!"
 )
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Theme Settings**")
-st.sidebar.info("Click the hamburger menu (☰) in top right to toggle between light/dark mode")
