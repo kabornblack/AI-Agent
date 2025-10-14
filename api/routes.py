@@ -24,11 +24,11 @@ class AgentResponse(BaseModel):
     name: str
     description: str
     system_prompt: str
-    created_at: datetime  # ← ADD THIS
-    updated_at: Optional[datetime] = None  # ← ADD THIS
+    created_at: datetime
+    updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # ← CHANGED from orm_mode to from_attributes
 
 class QueryRequest(BaseModel):
     agent_id: int
@@ -70,7 +70,8 @@ def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
 @router.get("/agents/", response_model=List[AgentResponse])
 def list_agents(db: Session = Depends(get_db)):
     """List all AI agents"""
-    return db.query(AIAgent).all()
+    agents = db.query(AIAgent).all()
+    return agents
 
 @router.delete("/agents/{agent_id}")
 def delete_agent(agent_id: int, db: Session = Depends(get_db)):
