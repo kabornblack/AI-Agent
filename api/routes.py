@@ -1,7 +1,8 @@
 # api/routes.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import datetime
 import json
 
 from api.database import get_db
@@ -23,6 +24,11 @@ class AgentResponse(BaseModel):
     name: str
     description: str
     system_prompt: str
+    created_at: datetime  # ← ADD THIS
+    updated_at: Optional[datetime] = None  # ← ADD THIS
+    
+    class Config:
+        orm_mode = True
 
 class QueryRequest(BaseModel):
     agent_id: int
