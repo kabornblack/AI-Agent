@@ -31,7 +31,7 @@ class AgentResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # For Pydantic v2 (replaces orm_mode)
+        orm_mode = True  # Changed from from_attributes for Pydantic v1
 
 
 class QueryRequest(BaseModel):
@@ -52,7 +52,7 @@ class ConversationResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True  # Changed from from_attributes for Pydantic v1
 
 
 # ----------------------------
@@ -86,16 +86,16 @@ def create_agent(agent: AgentCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_agent)
 
-    # ✅ Convert ORM to Pydantic model for response
-    return AgentResponse.model_validate(db_agent)
+    # ✅ Changed to from_orm for Pydantic v1
+    return AgentResponse.from_orm(db_agent)
 
 
 @router.get("/agents/", response_model=List[AgentResponse])
 def list_agents(db: Session = Depends(get_db)):
     """List all AI agents"""
     agents = db.query(AIAgent).all()
-    # ✅ Convert list of ORM objects to Pydantic models
-    return [AgentResponse.model_validate(a) for a in agents]
+    # ✅ Changed to from_orm for Pydantic v1
+    return [AgentResponse.from_orm(a) for a in agents]
 
 
 @router.delete("/agents/{agent_id}")
@@ -152,5 +152,5 @@ def get_agent_conversations(agent_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
-    # ✅ Convert ORM objects to Pydantic models
-    return [ConversationResponse.model_validate(c) for c in conversations]
+    # ✅ Changed to from_orm for Pydantic v1
+    return [ConversationResponse.from_orm(c) for c in conversations]
