@@ -67,7 +67,7 @@ if page == "Create Agent":
                     if response.status_code == 200:
                         st.success(f"✅ Agent '{name}' created successfully!")
                         st.session_state.agent_created = True
-                        st.rerun()
+                        
                     elif response.status_code == 400:
                         error_detail = response.json().get('detail', 'Unknown error')
                         st.error(f"❌ {error_detail}")
