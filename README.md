@@ -15,7 +15,7 @@ This project solves the core challenge described in the **Wise AI Implementation
 
 ## 🚀 Live Demo
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-name.streamlit.app/)
+[Streamlit App](https://ai-agent-jsu7p4gzsdijlmymy9sdpp.streamlit.app/)
 
 ## 🛠️ Technical Architecture
 
