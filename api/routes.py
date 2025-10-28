@@ -101,15 +101,22 @@ def list_agents(db: Session = Depends(get_db)):
 @router.delete("/agents/{agent_id}")
 def delete_agent(agent_id: int, db: Session = Depends(get_db)):
     """Delete an AI agent and its conversations"""
+    print(f"DEBUG: Attempting to delete agent {agent_id}")  # Add this line
+    
     agent = db.query(AIAgent).filter(AIAgent.id == agent_id).first()
     if not agent:
+        print(f"DEBUG: Agent {agent_id} not found")  # Add this line
         raise HTTPException(status_code=404, detail="Agent not found")
 
+    print(f"DEBUG: Found agent '{agent.name}', deleting conversations...")  # Add this line
+    
     # Delete associated conversations first
-    db.query(Conversation).filter(Conversation.agent_id == agent_id).delete()
+    conversations_deleted = db.query(Conversation).filter(Conversation.agent_id == agent_id).delete()
+    print(f"DEBUG: Deleted {conversations_deleted} conversations")  # Add this line
 
     db.delete(agent)
     db.commit()
+    print(f"DEBUG: Agent '{agent.name}' deleted successfully")  # Add this line
 
     return {"message": f"Agent '{agent.name}' deleted successfully"}
 
