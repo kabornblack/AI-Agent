@@ -1,10 +1,19 @@
 # main.py
+# 1. FIRST: Load environment variables
+import os
+from dotenv import load_dotenv
+
+# Load appropriate .env file
+if os.getenv("ENVIRONMENT") == "production":
+    load_dotenv(".env.production")
+else:
+    load_dotenv(".env")  # Default to development
+
+# 2. THEN: Import other modules
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import router
-from api.database import engine, Base
 import uvicorn
-import os
+from api.database import engine, Base
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -24,8 +33,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
-app.include_router(router, prefix="/api/v1")
+# Import routers - TRY to import public_router, but handle gracefully if it fails
+try:
+    from api.public_routes import public_router
+    app.include_router(public_router)
+    print("✅ Public routes loaded successfully")
+except ImportError as e:
+    print(f"⚠️ Warning: Could not load public routes: {e}")
+    # Create a simple placeholder
+    from fastapi import APIRouter
+    placeholder_router = APIRouter(prefix="/api/v1/public", tags=["public"])
+    
+    @placeholder_router.get("/")
+    def public_placeholder():
+        return {"message": "Public API placeholder - public_routes.py not found"}
+    
+    app.include_router(placeholder_router)
+
+# Register main routers
+try:
+    from api.routes import auth_router, main_router
+    app.include_router(auth_router)
+    app.include_router(main_router)
+    print("✅ Main routes loaded successfully")
+except ImportError as e:
+    print(f"❌ Error: Could not load main routes: {e}")
+    raise
 
 @app.get("/")
 def read_root():

@@ -2,8 +2,8 @@
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
-from typing import List
 import time
+from typing import Optional, List
 
 load_dotenv()
 
@@ -16,7 +16,6 @@ class AIService:
         self._setup_ai()
     
     def _setup_ai(self):
-        """Setup AI connection with correct model names"""
         if not self.api_key or self.api_key == "your-api-key-here":
             print("❌ DEMO MODE: No valid API key configured")
             return
@@ -24,263 +23,149 @@ class AIService:
         try:
             print("🔄 Configuring Gemini AI...")
             genai.configure(api_key=self.api_key)
-            
-            # Use the latest model names from your debug output
-            available_models = [
-                'models/gemini-2.0-flash-001',  # Primary choice - stable and fast
-                'models/gemini-2.0-flash',      # Alternative
-                'models/gemini-2.0-flash-lite', # Lightweight option
-                'models/gemini-pro-latest'      # Fallback
+
+            candidates = [
+                "models/gemini-2.0-flash-001",
+                "models/gemini-2.0-flash",
+                "models/gemini-2.0-flash-lite",
+                "models/gemini-pro-latest",
             ]
-            
-            # Try each model until we find one that works
-            for model_name in available_models:
+            for name in candidates:
                 try:
-                    print(f"🔄 Trying model: {model_name}")
-                    self.model = genai.GenerativeModel(model_name)
-                    
-                    # Test the connection with a quick call
-                    test_response = self.model.generate_content("Say 'AI is ready' in one word")
-                    print(f"✅ Model {model_name} working: '{test_response.text}'")
-                    
+                    print(f"🔄 Trying model: {name}")
+                    self.model = genai.GenerativeModel(name)
+                    test = self.model.generate_content("Now.")
+                    print(f"✅ Model {name} working: '{test.text}'")
                     self.demo_mode = False
-                    print(f"🎉 REAL AI MODE: Using {model_name}")
+                    print(f"🎉 REAL AI MODE: Using {name}")
                     return
-                    
-                except Exception as model_error:
-                    print(f"❌ Model {model_name} failed: {model_error}")
-                    continue
-            
-            # If all models fail
+                except Exception as e:
+                    print(f"❌ Model {name} failed: {e}")
             print("❌ All model attempts failed. Using demo mode.")
             self.demo_mode = True
-                
         except Exception as e:
-            print(f"❌ AI Setup failed: {str(e)}")
+            print(f"❌ AI Setup failed: {e}")
             self.demo_mode = True
 
-    def _get_wise_knowledge_base(self):
-        """Real Wise-specific knowledge for the AI to reference"""
-        return {
-            "transfer_speeds": {
-                "instant": "Card payments: Usually within seconds for supported routes",
-                "fast": "Digital wallets: 0-2 hours for Apple Pay/Google Pay",
-                "standard": "Bank transfers: 1-2 business days for most routes"
-            },
-            "fees": "Typically 0.5% - 2% of transfer amount plus small fixed fee",
-            "supported_countries": "80+ countries including US, UK, EU, Canada, Australia",
-            "security": "Regulated by FCA, FinCEN, ASIC. Funds held in segregated accounts",
-            "limits": "Personal: $50,000/day after verification. Business: Higher limits available",
-            "verification": "Standard verification requires photo ID. Enhanced verification may require proof of address.",
-            "currencies": "Supports 50+ currencies with real-time exchange rates",
-            "features": "Multi-currency account, debit card, business accounts, batch payments"
-        }
-
-    def _get_hr_knowledge_base(self):
-        """HR-specific knowledge for Wise"""
-        return {
-            "onboarding": "New hires complete digital onboarding, receive equipment, and attend orientation week. First week includes meet & greets with team leads.",
-            "benefits": "Comprehensive health insurance, stock options, flexible PTO, £1,000 learning budget, 6 months parental leave, wellness stipend",
-            "policies": "Remote-first culture, 4-day work trial for new hires, transparent salaries, direct feedback culture, no formal dress code",
-            "locations": "Global offices in Tallinn, London, New York, Singapore, Budapest with flexible remote work options",
-            "culture": "Mission-driven (money without borders), no ego, focus on customer impact, collaborative environment, weekly company updates",
-            "development": "Regular performance conversations, promotion cycles twice per year, mentorship programs, internal mobility encouraged"
-        }
-
-    def _get_payments_knowledge_base(self):
-        """Payments-specific knowledge for Wise"""
-        return {
-            "common_issues": "Payment delays usually due to: verification requirements, bank processing times, compliance checks, or incorrect recipient details",
-            "failed_payments": "Check: sufficient funds, correct recipient details, account verification status, transfer limits, bank account status",
-            "tracking": "Real-time tracking available in app with email/SMS notifications at each stage: processing, sent, funds received",
-            "compliance": "All transfers screened for anti-money laundering and sanctions compliance. May require additional documentation for large amounts.",
-            "refunds": "Failed payments automatically refunded in 3-5 business days to original payment method. Contact support if refund delayed.",
-            "cutoff_times": "Transfers submitted before 2 PM local time typically process same day. Weekend transfers process next business day."
-        }
-
+    # ---------- Scope / boundaries helpers (unchanged in spirit) ----------
     def _get_agent_boundaries(self, system_prompt: str) -> dict:
-        """Define strict boundaries for each agent type"""
-        prompt_lower = system_prompt.lower()
-        
-        if any(keyword in prompt_lower for keyword in ['hr', 'human resources', 'onboarding', 'employee']):
+        p = system_prompt.lower()
+        if any(k in p for k in ['hr', 'human resources', 'onboarding', 'employee']):
             return {
                 "role": "HR Assistant",
-                "allowed_topics": ["onboarding", "benefits", "policies", "career development", "company culture", "time off", "salary", "training"],
-                "out_of_scope_message": "I specialize in HR topics like onboarding, benefits, and company policies. For payment or account questions, please contact our customer support team who can better assist you.",
-                "escalation_path": "Customer Support team"
+                "allowed_topics": ["onboarding","benefits","policies","career development","company culture","time off","salary","training"],
+                "out_of_scope_message": "I only handle HR topics (onboarding, benefits, policies, etc.). For payment/account issues, please contact Support.",
+                "escalation_path": "Customer Support team",
             }
-        
-        elif any(keyword in prompt_lower for keyword in ['payments', 'transaction', 'failed payment', 'transfer issue']):
+        elif any(k in p for k in ['payments','transaction','failed payment','transfer issue']):
             return {
-                "role": "Payments Specialist", 
-                "allowed_topics": ["payment processing", "failed payments", "transfer tracking", "transaction issues", "refunds", "verification"],
-                "out_of_scope_message": "I specialize in payment and transaction issues. For HR or employee benefit questions, please contact our HR department.",
-                "escalation_path": "HR department"
+                "role": "Payments Specialist",
+                "allowed_topics": ["payment processing","failed payments","transfer tracking","transaction issues","refunds","verification"],
+                "out_of_scope_message": "I only handle payment/transaction issues. For HR topics, contact HR.",
+                "escalation_path": "HR department",
             }
-        
-        elif any(keyword in prompt_lower for keyword in ['compliance', 'financial crime', 'kyc', 'aml', 'verification']):
+        elif any(k in p for k in ['compliance','financial crime','kyc','aml','verification']):
             return {
                 "role": "Compliance Specialist",
-                "allowed_topics": ["verification", "kyc", "aml", "sanctions", "compliance checks", "account limits"],
-                "out_of_scope_message": "I specialize in compliance and verification processes. For general payment questions, please contact our customer support team.",
-                "escalation_path": "Customer Support team"
+                "allowed_topics": ["verification","kyc","aml","sanctions","compliance checks","account limits"],
+                "out_of_scope_message": "I only handle compliance/verification. For general payments, contact Support.",
+                "escalation_path": "Customer Support team",
             }
-        
-        else:  # Default to Customer Support
+        else:
             return {
                 "role": "Customer Support Agent",
-                "allowed_topics": ["transfers", "fees", "account setup", "general questions", "troubleshooting"],
-                "out_of_scope_message": "I specialize in general customer support. For specialized HR or compliance questions, I'll need to direct you to the appropriate team.",
-                "escalation_path": "appropriate specialized team"
+                "allowed_topics": ["transfers","fees","account setup","general questions","troubleshooting"],
+                "out_of_scope_message": "I’m a general support agent. For specialized HR/compliance, I’ll direct you appropriately.",
+                "escalation_path": "appropriate specialized team",
             }
 
     def _is_question_in_scope(self, user_query: str, boundaries: dict) -> bool:
-        """Check if the question is within this agent's scope"""
-        query_lower = user_query.lower()
-        allowed_topics = boundaries["allowed_topics"]
-        
-        # Check if any allowed topic is mentioned in the query
-        for topic in allowed_topics:
-            if topic in query_lower:
-                return True
-        
-        # Specific out-of-scope detection
-        out_of_scope_keywords = {
-            "HR Assistant": ["payment", "transfer", "fee", "bank", "transaction", "money send", "refund"],
-            "Payments Specialist": ["onboarding", "benefits", "salary", "vacation", "hr policy", "employee"],
-            "Compliance Specialist": ["onboarding", "benefits", "payment speed", "transfer time", "customer support"],
-            "Customer Support Agent": []  # Customer support handles broad topics
+        q = user_query.lower()
+        if any(topic in q for topic in boundaries["allowed_topics"]):
+            return True
+        out_of_scope = {
+            "HR Assistant": ["payment","transfer","fee","bank","transaction","refund"],
+            "Payments Specialist": ["onboarding","benefits","salary","vacation","hr policy","employee"],
+            "Compliance Specialist": ["onboarding","benefits","payment speed","transfer time","customer support"],
+            "Customer Support Agent": [],
         }
-        
-        agent_role = boundaries["role"]
-        if agent_role in out_of_scope_keywords:
-            for keyword in out_of_scope_keywords[agent_role]:
-                if keyword in query_lower:
-                    return False
-        
-        return True  # Default to in-scope for customer support
+        for k in out_of_scope.get(boundaries["role"], []):
+            if k in q:
+                return False
+        return True
 
-    def _get_knowledge_context(self, system_prompt: str) -> str:
-        """Get relevant knowledge based on the agent type"""
-        prompt_lower = system_prompt.lower()
-        
-        if any(keyword in prompt_lower for keyword in ['customer support', 'wise', 'transfer', 'money', 'bank']):
-            wise_kb = self._get_wise_knowledge_base()
-            return f"""
-            
-WISE KNOWLEDGE BASE:
-- Transfer Speeds: {wise_kb['transfer_speeds']}
-- Fees: {wise_kb['fees']}
-- Supported Countries: {wise_kb['supported_countries']}
-- Security: {wise_kb['security']}
-- Account Limits: {wise_kb['limits']}
-- Verification: {wise_kb['verification']}
-- Features: {wise_kb['features']}
-"""
-        
-        elif any(keyword in prompt_lower for keyword in ['hr', 'human resources', 'onboarding', 'employee', 'benefits']):
-            hr_kb = self._get_hr_knowledge_base()
-            return f"""
-            
-HR KNOWLEDGE BASE:
-- Onboarding Process: {hr_kb['onboarding']}
-- Employee Benefits: {hr_kb['benefits']}
-- Company Policies: {hr_kb['policies']}
-- Office Locations: {hr_kb['locations']}
-- Company Culture: {hr_kb['culture']}
-- Career Development: {hr_kb['development']}
-"""
-        
-        elif any(keyword in prompt_lower for keyword in ['payments', 'transaction', 'failed payment', 'transfer issue']):
-            payments_kb = self._get_payments_knowledge_base()
-            return f"""
-            
-PAYMENTS KNOWLEDGE BASE:
-- Common Issues: {payments_kb['common_issues']}
-- Failed Payments: {payments_kb['failed_payments']}
-- Transfer Tracking: {payments_kb['tracking']}
-- Compliance Checks: {payments_kb['compliance']}
-- Refund Process: {payments_kb['refunds']}
-- Processing Times: {payments_kb['cutoff_times']}
-"""
-        
-        elif any(keyword in prompt_lower for keyword in ['compliance', 'financial crime', 'kyc', 'aml', 'verification']):
-            crime_kb = self._get_financial_crime_knowledge_base()
-            return f"""
-            
-COMPLIANCE KNOWLEDGE BASE:
-- KYC Requirements: {crime_kb['kyc_requirements']}
-- AML Monitoring: {crime_kb['aml_checks']}
-- Sanctions Screening: {crime_kb['sanctions']}
-- Regulatory Reporting: {crime_kb['reporting']}
-- Verification Timelines: {crime_kb['verification_times']}
-"""
-        
-        return ""  # No specific knowledge base
-
-    def create_agent(self, system_prompt: str, knowledge_texts: List[str] = None) -> str:
-        """Create a new AI agent with a system prompt"""
-        print(f"🤖 Creating agent with prompt: {system_prompt[:100]}...")
-        if knowledge_texts:
-            print(f"📚 Added {len(knowledge_texts)} knowledge documents")
-        return system_prompt
-    
-    def query_agent(self, user_query: str, system_prompt: str, use_knowledge_base: bool = True) -> str:
-        start_time = time.time()
-        
-        # Get agent boundaries first
+    # ---------- MAIN ENTRY POINT ----------
+    def query_agent(
+        self,
+        user_query: str,
+        system_prompt: str,
+        company_name: Optional[str] = None,
+        knowledge_text: Optional[str] = None,
+    ) -> str:
+        """
+        Build a prompt that ONLY uses company knowledge (if provided).
+        If no knowledge is available, the agent should say it doesn't have enough info.
+        """
+        start = time.time()
         boundaries = self._get_agent_boundaries(system_prompt)
-        agent_role = boundaries["role"]
-        
-        # Check if question is within this agent's scope
+        role = boundaries["role"]
+
+        # Enforce scope
         if not self._is_question_in_scope(user_query, boundaries):
             if self.demo_mode:
-                return f"🔒 **{agent_role}**: {boundaries['out_of_scope_message']}"
-            else:
-                # Even in real AI mode, enforce boundaries
-                enforced_prompt = f"""You are a {agent_role} at Wise. 
+                return f"🔒 **{role}**: {boundaries['out_of_scope_message']}"
+            enforced = (
+                f"You are a {role}. User asked: '{user_query}'. "
+                f"This is out of scope. Politely direct them to {boundaries['escalation_path']}."
+            )
+            try:
+                resp = self.model.generate_content(enforced)
+                return resp.text
+            except:
+                return f"🔒 **{role}**: {boundaries['out_of_scope_message']}"
 
-Your role is strictly limited to: {', '.join(boundaries['allowed_topics'])}
-
-A user has asked: "{user_query}"
-
-This question is outside your area of expertise. Please politely direct them to the {boundaries['escalation_path']} and explain that you specialize in {', '.join(boundaries['allowed_topics'][:3])}.
-
-Your response:"""
-                
-                try:
-                    response = self.model.generate_content(enforced_prompt)
-                    return response.text
-                except:
-                    return f"🔒 **{agent_role}**: {boundaries['out_of_scope_message']}"
-        
+        # DEMO mode: return lightweight answer that references the company KB if present
         if self.demo_mode:
-            response = self._get_instant_demo_response(user_query, system_prompt, boundaries)
-            elapsed = time.time() - start_time
-            print(f"⏱️ Demo response in {elapsed:.2f}s")
-            return response
-        
+            if knowledge_text:
+                return (
+                    f"🤖 **{role}** (demo): Using **{company_name}** knowledge.\n\n"
+                    f"**KB says:** {knowledge_text[:400]}...\n\n"
+                    f"Your question: '{user_query}'. Based on the above, here’s a helpful answer."
+                )
+            else:
+                return (
+                    f"🤖 **{role}** (demo): I don’t have company knowledge to answer that. "
+                    f"Please add knowledge for this company."
+                )
+
+        # REAL call
         try:
-            print(f"🤖 Sending to {agent_role}: '{user_query[:50]}...'")
-            
-            # Get relevant knowledge based on the system prompt
-            knowledge_context = ""
-            if use_knowledge_base:
-                knowledge_context = self._get_knowledge_context(system_prompt)
-            
-            # Build the enhanced prompt with role enforcement
-            full_prompt = f"""You are a {agent_role} at Wise. Follow these instructions carefully:
+            kb_block = (
+                f"COMPANY: {company_name}\n\n"
+                f"COMPANY KNOWLEDGE (authoritative):\n{knowledge_text}\n\n"
+                if knowledge_text else
+                "NO COMPANY KNOWLEDGE PROVIDED.\n\n"
+            )
 
-SYSTEM ROLE: {system_prompt}
-{knowledge_context}
+            guardrails = (
+                f"You are a {role}.\n\n"
+                "RULES:\n"
+                "1) Only use the 'COMPANY KNOWLEDGE' above. Do NOT invent facts.\n"
+                "2) If the knowledge doesn’t contain the answer, say you don’t have enough info and suggest contacting a human.\n"
+                "3) Stay within your allowed topics.\n\n"
+                f"ALLOWED TOPICS: {', '.join(boundaries['allowed_topics'])}\n"
+                f"OUT-OF-SCOPE HANDLING: {boundaries['out_of_scope_message']}\n\n"
+            )
 
-IMPORTANT: You must stay strictly within your role as {agent_role}. Only answer questions about: {', '.join(boundaries['allowed_topics'])}.
+            full_prompt = (
+                f"{guardrails}"
+                f"{kb_block}"
+                f"SYSTEM PROMPT:\n{system_prompt}\n\n"
+                f"USER QUESTION:\n{user_query}\n\n"
+                "YOUR ANSWER:"
+            )
 
-USER QUESTION: {user_query}
-
-Please provide a helpful, accurate response that follows your system role instructions and stays within your expertise:"""
-            
-            response = self.model.generate_content(
+            resp = self.model.generate_content(
                 full_prompt,
                 generation_config=genai.types.GenerationConfig(
                     max_output_tokens=800,
@@ -288,101 +173,83 @@ Please provide a helpful, accurate response that follows your system role instru
                     top_p=0.8
                 )
             )
-            
-            elapsed = time.time() - start_time
-            print(f"✅ {agent_role} response in {elapsed:.2f}s")
-            return response.text
-            
+            elapsed = time.time() - start
+            print(f"✅ {role} response in {elapsed:.2f}s")
+            return resp.text
+
         except Exception as e:
-            elapsed = time.time() - start_time
+            elapsed = time.time() - start
             print(f"❌ AI call failed after {elapsed:.2f}s: {e}")
-            return self._get_instant_demo_response(user_query, system_prompt, boundaries)
-
-    def _get_instant_demo_response(self, user_query: str, system_prompt: str, boundaries: dict = None) -> str:
-        """Smart demo responses with strict role enforcement"""
-        if boundaries is None:
-            boundaries = self._get_agent_boundaries(system_prompt)
+            if knowledge_text:
+                return (
+                    f"⚠️ Temporary issue. Based on the company knowledge, here’s context you can use:\n\n"
+                    f"{knowledge_text[:600]}..."
+                )
+            return "⚠️ Temporary issue and no company knowledge available."
         
-        agent_role = boundaries["role"]
+    def query_public_agent(
+        self,
+        user_query: str,
+        system_prompt: str,
+        company_name: str,
+        knowledge_text: Optional[str] = None,
+    ) -> dict:
+        """
+        Special handling for public queries.
+        Returns dict with response and whether email is needed.
+        """
+        if not knowledge_text:
+            return {
+                "response": "I don't have enough information about the company to answer that question. Please contact support for more details.",
+                "requires_email": True
+            }
+        
+        # Check if question is in knowledge
         query_lower = user_query.lower()
+        knowledge_lower = knowledge_text.lower()
         
-        # First check if this is out of scope
-        if not self._is_question_in_scope(user_query, boundaries):
-            return f"🔒 **{agent_role}**: {boundaries['out_of_scope_message']}"
+        # Simple keyword matching for demo
+        important_keywords = ["price", "cost", "pricing", "fee", "plan", "subscription"]
         
-        # Role-specific responses
-        hr_responses = {
-            "onboarding": "The onboarding process takes about 2 weeks and includes digital setup, equipment delivery, orientation sessions, and team introductions. You'll be assigned a buddy to help you settle in.",
-            "benefits": "We offer comprehensive benefits: health/dental/vision insurance, stock options, flexible PTO, £1,000 annual learning budget, 6 months parental leave, and wellness programs.",
-            "policy": "Our remote-first culture emphasizes transparency, direct feedback, and work-life balance. We have transparent salaries and encourage taking time off when needed.",
-            "vacation": "We have a flexible PTO policy - take time as needed when coordinated with your team. We encourage minimum 21 days off per year.",
-            "salary": "Wise practices transparent compensation with regular market adjustments. Salaries are based on role, experience level, and location bands.",
-            "culture": "We're mission-driven to create money without borders. Our values include no ego, customer impact, and team collaboration. We have weekly all-hands meetings.",
-            "development": "We have bi-annual promotion cycles, regular performance conversations, mentorship programs, and support internal mobility and skill development."
+        if any(keyword in query_lower for keyword in important_keywords):
+            # Check if pricing info exists in knowledge
+            if not any(pricing_word in knowledge_lower for pricing_word in 
+                      ["price", "cost", "fee", "$", "usd", "plan"]):
+                response = (
+                    f"I don't have specific pricing information available. "
+                    f"Would you like me to forward your question about pricing to our sales team?"
+                )
+                return {"response": response, "requires_email": True}
+        
+        # Use regular query method
+        ai_response = self.query_agent(
+            user_query=user_query,
+            system_prompt=system_prompt,
+            company_name=company_name,
+            knowledge_text=knowledge_text
+        )
+        
+        # Determine if response indicates lack of knowledge
+        response_lower = ai_response.lower()
+        uncertainty_phrases = [
+            "don't know",
+            "don't have",
+            "not sure",
+            "no information",
+            "cannot answer",
+            "unable to",
+            "not provided",
+            "lack of",
+            "insufficient"
+        ]
+        
+        requires_email = any(phrase in response_lower for phrase in uncertainty_phrases)
+        
+        return {
+            "response": ai_response,
+            "requires_email": requires_email
         }
-        
-        payments_responses = {
-            "failed": "Check: 1) Sufficient funds in your account 2) Correct recipient details 3) Your verification status 4) Transfer limits. Failed payments auto-refund in 3-5 days.",
-            "tracking": "You can track transfers in real-time via the app. We send notifications at each stage: processing, sent, funds received, completed.",
-            "delay": "Delays can occur due to verification, bank processing times, or compliance checks. Most transfers complete within the estimated timeframe.",
-            "refund": "Failed payments are automatically refunded to your original payment method within 3-5 business days. Contact support if not received after 5 days.",
-            "verification": "Standard verification requires a government ID and takes 1-2 days. Enhanced verification may need proof of address for higher limits.",
-            "limit": "Personal accounts: $2,000/day unverified, $50,000/day verified. Business accounts have higher limits based on business size and needs."
-        }
-        
-        customer_support_responses = {
-            "transfer": "We offer instant transfers with cards (seconds), fast transfers with digital wallets (0-2 hours), and standard bank transfers (1-2 days).",
-            "fee": "Fees are typically 0.5%-2% of the amount plus a small fixed fee. You see the total cost upfront before confirming any transfer.",
-            "safe": "Wise is regulated by financial authorities globally. Customer funds are held in segregated accounts at major banks with bank-level security.",
-            "country": "We support 80+ countries including US, UK, EU, Canada, Australia, and many more. Check our website for specific country availability.",
-            "account": "You can open a multi-currency account to hold 50+ currencies, get a debit card, and manage international payments all in one place."
-        }
-        
-        # Get responses based on agent role
-        if agent_role == "HR Assistant":
-            for key, response in hr_responses.items():
-                if key in query_lower:
-                    return f"💼 **{agent_role}**: {response}"
-            return f"""💼 **{agent_role} Demo**: I understand you're asking about HR topics.
 
-I specialize in:
-• Employee onboarding and orientation
-• Benefits and compensation
-• Company policies and culture
-• Career development and training
-• Workplace guidelines
-
-What specific HR question can I help you with?"""
-        
-        elif agent_role == "Payments Specialist":
-            for key, response in payments_responses.items():
-                if key in query_lower:
-                    return f"💳 **{agent_role}**: {response}"
-            return f"""💳 **{agent_role} Demo**: I understand you're asking about payment issues.
-
-I specialize in:
-• Payment processing and tracking
-• Failed payment troubleshooting
-• Transfer verification
-• Account limits and compliance
-• Refund processes
-
-What specific payment issue can I assist with?"""
-        
-        else:  # Customer Support Agent
-            for key, response in customer_support_responses.items():
-                if key in query_lower:
-                    return f"🤖 **{agent_role}**: {response}"
-            return f"""🤖 **{agent_role} Demo**: I understand you're asking about "{user_query}".
-
-I can help with:
-• International money transfers and fees
-• Account setup and verification
-• Transfer tracking and timing
-• Security and safety questions
-• General Wise services
-
-What specific service can I help you with today?"""
-
-# Singleton instance
+# Singleton
 ai_service = AIService()
+

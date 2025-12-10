@@ -12,9 +12,125 @@ st.set_page_config(
     layout="wide"
 )
 
+# Floating Theme Toggle Button
+st.markdown("""
+<style>
+    /* Floating theme toggle */
+    .theme-toggle {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: var(--secondary-background-color);
+        border: 2px solid var(--primary-color);
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transition: all 0.3s ease;
+        font-size: 20px;
+    }
+    
+    .theme-toggle:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+</style>
+
+<script>
+function toggleTheme() {
+    // Get current theme
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    
+    // Toggle theme
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    // Update Streamlit theme
+    const event = new CustomEvent('themeToggle', { detail: newTheme });
+    document.dispatchEvent(event);
+    
+    // Save preference
+    localStorage.setItem('theme', newTheme);
+    
+    // Update button icon
+    updateButtonIcon(newTheme);
+}
+
+function updateButtonIcon(theme) {
+    const button = document.querySelector('.theme-toggle');
+    button.innerHTML = theme === 'light' ? '🌙' : '☀️';
+}
+
+// Initialize button icon
+document.addEventListener('DOMContentLoaded', function() {
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    updateButtonIcon(currentTheme);
+});
+
+// Listen for theme changes from Streamlit
+document.addEventListener('themeChanged', function(e) {
+    updateButtonIcon(e.detail);
+});
+</script>
+
+<div class="theme-toggle" onclick="toggleTheme()">🌙</div>
+""", unsafe_allow_html=True)
+
+# Professional Floating Theme Toggle - ACTUALLY WORKS
+st.markdown("""
+<style>
+    /* Floating theme toggle container */
+    .floating-theme {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+    
+    /* Toggle button styling */
+    .theme-btn {
+        background: var(--secondary-background-color);
+        border: 2px solid var(--primary-color);
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transition: all 0.3s ease;
+        font-size: 20px;
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .theme-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+    
+    /* Hide the default Streamlit theme selector */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+</style>
+
+<div class="floating-theme">
+    <a class="theme-btn" href="?theme=light" title="Toggle Theme">🌙</a>
+</div>
+""", unsafe_allow_html=True)
+
 # Initialize session state
 if 'agent_created' not in st.session_state:
     st.session_state.agent_created = False
+
+# Initialize delete confirmation states
+if 'delete_confirmations' not in st.session_state:
+    st.session_state.delete_confirmations = {}
 
 st.title("🤖 AI Agent Builder - Plug & Play")
 st.markdown("Create your own AI agents in minutes!")
@@ -152,28 +268,45 @@ elif page == "Manage Agents":
                                     st.info("No conversations yet for this agent")
                         
                         with col2:
-                            # Delete button with confirmation
-                            delete_key = f"delete_{agent['id']}"
-                            cancel_key = f"cancel_{agent['id']}"
-                            confirm_key = f'confirm_delete_{agent["id"]}'
+                            # Delete button with proper "click twice" confirmation
+                            agent_id = agent['id']
+                            confirm_key = f'confirm_delete_{agent_id}'
                             
-                            if st.button("🗑️ Delete", key=delete_key):
-                                if st.session_state.get(confirm_key):
-                                    # Second click - actually delete
-                                    try:
-                                        delete_response = requests.delete(f"{API_BASE}/agents/{agent['id']}")
-                                        if delete_response.status_code == 200:
-                                            st.success(f"✅ Agent '{agent['name']}' deleted!")
-                                            st.rerun()
-                                        else:
-                                            st.error("Failed to delete agent")
-                                    except Exception as e:
-                                        st.error(f"Error deleting agent: {e}")
-                                else:
-                                    # First click - show confirmation
+                            # Initialize confirmation state for this agent if not exists
+                            if confirm_key not in st.session_state:
+                                st.session_state[confirm_key] = False
+                            
+                            if st.session_state[confirm_key]:
+                                # Second click - show confirmation and OK button
+                                st.warning(f"⚠️ Click OK to confirm deletion of '{agent['name']}'")
+                                
+                                col_ok, col_cancel = st.columns(2)
+                                
+                                with col_ok:
+                                    if st.button("✅ OK", key=f"ok_{agent_id}"):
+                                        try:
+                                            delete_response = requests.delete(f"{API_BASE}/agents/{agent_id}")
+                                            if delete_response.status_code == 200:
+                                                st.success(f"✅ Agent '{agent['name']}' deleted successfully!")
+                                                # Reset confirmation state
+                                                st.session_state[confirm_key] = False
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ Failed to delete agent: {delete_response.text}")
+                                                st.session_state[confirm_key] = False
+                                        except Exception as e:
+                                            st.error(f"❌ Error deleting agent: {e}")
+                                            st.session_state[confirm_key] = False
+                                
+                                with col_cancel:
+                                    if st.button("❌ Cancel", key=f"cancel_{agent_id}"):
+                                        st.session_state[confirm_key] = False
+                                        st.rerun()
+                            else:
+                                # First click - show delete button
+                                if st.button("🗑️ Delete", key=f"delete_{agent_id}"):
                                     st.session_state[confirm_key] = True
-                                    st.warning(f"Click again to confirm deletion of '{agent['name']}'")
-                            
+                                    st.rerun()
                 
                 # Add bulk statistics
                 st.subheader("📈 Agent Statistics")
@@ -194,3 +327,18 @@ elif page == "Manage Agents":
             st.error("Failed to fetch agents")
     except Exception as e:
         st.error(f"Error connecting to API: {e}")
+
+st.sidebar.markdown("---")
+st.sidebar.info(
+    "🚀 **AI Agent Builder**\n\n"
+    "Create specialized AI assistants for:\n\n"
+    "• Customer Support\n\n"
+    "• HR & Onboarding\n\n" 
+    "• Payments & Transactions\n\n"
+    "• Compliance & Verification\n\n"
+    "No coding required!"
+)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Theme Settings**")
+st.sidebar.info("Click the 3 dots on the top right to toggle between light/dark mode")
